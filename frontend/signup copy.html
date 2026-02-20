@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign Up | Know Your Worth</title>
+  <link rel="stylesheet" href="index.css" />
+</head>
+<body>
+  <div class="auth-page">
+    <div class="auth-card">
+      <h2>Create Account 🚀</h2>
+      <p class="auth-sub">Join to save predictions and track salary growth</p>
+
+      <input id="email" type="email" placeholder="Email" />
+      <input id="password" type="password" placeholder="Password" />
+
+      <button id="signupBtn">Create Account</button>
+      <p id="authMsg"></p>
+
+      <div class="auth-switch">
+        Already have an account?
+        <a href="login.html">Login</a>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const API = "http://127.0.0.1:5000";
+
+  document.getElementById("signupBtn").onclick = async () => {
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value.trim();
+    const msg = document.getElementById("authMsg");
+
+    if (!email || !password) {
+      msg.style.color = "#dc2626";
+      msg.innerText = "Please enter email and password";
+      return;
+    }
+
+    msg.style.color = "#2563eb";
+    msg.innerText = "Creating account & sending verification email...";
+
+    try {
+      const res = await fetch(API + "/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password })
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        msg.style.color = "#16a34a";
+        msg.innerText = "Verification email sent! Check your inbox 📩";
+      } else {
+        msg.style.color = "#dc2626";
+        msg.innerText = data.message || "Signup failed";
+      }
+    } catch (err) {
+      msg.style.color = "#dc2626";
+      msg.innerText = "Server not reachable. Is Flask running?";
+    }
+  };
+</script>
+
+</body>
+</html>

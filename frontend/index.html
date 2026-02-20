@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Know Your Worth</title>
+
+  <link rel="stylesheet" href="index.css" />
+</head>
+
+<body>
+
+  <!-- NAVBAR -->
+  <nav class="glass-navbar">
+    <div class="nav-left">
+      <span class="brand">💼 Salary Predictor</span>
+    </div>
+
+    <div class="nav-right">
+      <button id="logoutBtn" class="logout-btn">Logout</button>
+    </div>
+  </nav>
+
+  <div class="blob one"></div>
+  <div class="blob two"></div>
+
+  <!-- MAIN SECTION -->
+  <main class="hero">
+    <div class="content">
+
+      <h1>
+        Know Your <span>Worth</span>
+      </h1>
+
+      <p class="subtitle">
+        AI-powered salary predictions based on real-time market data.
+        Get accurate compensation estimates for any tech role, skill set, and location.
+      </p>
+
+      <div class="form-card">
+        <form>
+          <div class="form-group">
+            <label>Job Role</label>
+            <input type="text" id="jobRole" placeholder="Automation Engineer, Platform Engineer, QA Automation Engineer"
+              required />
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Skills</label>
+              <input type="text" id="skills" placeholder="Python, SQL, Machine Learning" required />
+            </div>
+
+            <div class="form-group">
+              <label>Region</label>
+              <input type="text" id="region" placeholder="India, United States, Germany" required />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Years of Experience</label>
+            <input type="number" id="yearsOfExperience" placeholder="e.g. 2" min="0" required />
+          </div>
+
+          <button type="submit">
+            🔍 Predict Salary Range
+          </button>
+
+          <div id="result"></div>
+        </form>
+
+        <button id="downloadBtn" type="button" style="background:#0f172a">
+          📥 Download Report (PDF)
+        </button>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- CHART -->
+  <div class="chart-card">
+    <canvas id="salaryChart"></canvas>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- SCRIPT -->
+  <script>
+    const KNOWN_ROLES = [
+      "software engineer", "frontend developer", "backend developer",
+      "full stack developer", "data scientist", "machine learning engineer",
+      "ai engineer", "devops engineer", "qa engineer", "automation engineer",
+      "web developer", "mobile developer", "cloud engineer", "tester", "intern"
+    ];
+
+    function looksLikeRandomText(text) {
+      text = text.trim().toLowerCase();
+      if (!/^[a-z\s,.-]{2,50}$/.test(text)) return true;
+      if (/(.)\1\1/.test(text)) return true;
+      const vowels = text.match(/[aeiou]/g);
+      if (!vowels || vowels.length / text.length < 0.2) return true;
+      return false;
+    }
+
+    function isValidJobRole(role) {
+      const cleaned = role.toLowerCase().trim();
+      return KNOWN_ROLES.some(r => cleaned.includes(r));
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        window.location.href = "login.html";
+        return;
+      }
+
+      const form = document.querySelector("form");
+      const resultEl = document.getElementById("result");
+      const logoutBtn = document.getElementById("logoutBtn");
+      const downloadBtn = document.getElementById("downloadBtn");
+      let chart;
+
+      form.addEventListener("submit", async function (e) {
+        e.preventDefault();
+
+        const jobRole = document.getElementById("jobRole").value.trim();
+        const skills = document.getElementById("skills").value.trim();
+        const region = document.getElementById("region").value.trim();
+        const yearsOfExperience = document.getElementById("yearsOfExperience").value;
+
+        if (looksLikeRandomText(jobRole) || !isValidJobRole(jobRole)) {
+          alert("❌ Please enter a valid Job Role (e.g., Software Engineer, Frontend Developer)");
+          return;
+        }
+        if (looksLikeRandomText(skills)) {
+          alert("❌ Please enter valid skills (e.g., Python, SQL, Machine Learning)");
+          return;
+        }
+        if (looksLikeRandomText(region)) {
+          alert("❌ Please enter a valid country (e.g., India, United States)");
+          return;
+        }
+        if (yearsOfExperience === "" || yearsOfExperience < 0 || yearsOfExperience > 50) {
+          alert("❌ Please enter valid years of experience (0–50)");
+          return;
+        }
+
+        try {
+          resultEl.innerText = "⏳ Calculating PPP-adjusted salary...";
+
+          const API = "https://YOUR_BACKEND_URL";  // change later to real backend URL
+
+          const response = await fetch(API + "/predict-salary", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": token
+            },
+            body: JSON.stringify({ jobRole, skills, region, yearsOfExperience })
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            alert(data.error || "Prediction failed");
+            resultEl.innerText = "";
+            return;
+          }
+
+          resultEl.innerHTML = `
+          💰 <b>Nominal Salary (USD)</b>: $${new Intl.NumberFormat("en-US").format(data.nominalSalaryUSD)} <br/>
+          🌍 <b>PPP Adjusted Salary in ${region} (${data.currency.code} ${data.currency.symbol})</b>: 
+          ${data.currency.symbol}${new Intl.NumberFormat().format(Math.round(data.pppSalaryLocal))} <br/><br/>
+          <span style="font-size:13px; opacity:0.7">
+            PPP salary reflects the true value of income after adjusting for cost of living.
+          </span>
+        `;
+
+          const ctx = document.getElementById("salaryChart").getContext("2d");
+          if (chart) chart.destroy();
+
+          chart = new Chart(ctx, {
+            type: "line",
+            data: {
+              labels: ["Now", "1 Year", "2 Years", "3 Years"],
+              datasets: [{
+                label: "PPP Adjusted Salary Growth",
+                data: [
+                  data.pppSalaryLocal,
+                  data.growth.year1_ppp_local,
+                  data.growth.year2_ppp_local,
+                  data.growth.year3_ppp_local
+                ],
+                borderWidth: 3,
+                tension: 0.45,
+                fill: true,
+                backgroundColor: "rgba(16, 185, 129, 0.15)",
+                borderColor: "#10b981"
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false
+            }
+          });
+
+        } catch (err) {
+          alert("❌ Server not reachable. Is Flask running?");
+          console.error(err);
+          resultEl.innerText = "";
+        }
+      });
+
+      downloadBtn.addEventListener("click", async function () {
+        const jobRole = document.getElementById("jobRole").value;
+        const skills = document.getElementById("skills").value;
+        const region = document.getElementById("region").value;
+        const yearsOfExperience = document.getElementById("yearsOfExperience").value;
+
+        const res = await fetch("http://127.0.0.1:5000/download-report", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": token
+          },
+          body: JSON.stringify({ jobRole, skills, region, yearsOfExperience })
+        });
+
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "salary_report.pdf";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      });
+
+      logoutBtn.addEventListener("click", function () {
+        localStorage.removeItem("token");
+        window.location.href = "login.html";
+      });
+    });
+  </script>
+
+</body>
+
+</html>
